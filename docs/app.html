@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <title>BatMapper Web — Run it in your browser</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@400;500;600&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="styles.css" />
+        <style>
+            .app-main { padding-top: 110px; min-height: 100vh; }
+            .app-grid { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: stretch; }
+            @media (max-width: 900px) { .app-grid { grid-template-columns: 1fr; } }
+            .panel { background: rgba(13, 20, 38, 0.6); border: 1px solid rgba(0, 229, 255, 0.15); border-radius: 16px; padding: 20px; backdrop-filter: blur(12px); }
+            .panel h3 { margin: 0 0 14px; font-family: 'Outfit', sans-serif; font-size: 1rem; color: #eaf6ff; }
+            .readout { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-family: 'Inter', sans-serif; }
+            .readout:last-child { border-bottom: none; }
+            .readout .label { color: rgba(234,246,255,0.55); font-size: 0.85rem; }
+            .readout .value { color: #00e5ff; font-weight: 600; font-variant-numeric: tabular-nums; }
+            .btn-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+            .status-line { margin-top: 14px; font-size: 0.8rem; color: rgba(234,246,255,0.5); font-family: 'Inter', sans-serif; min-height: 1.2em; }
+            #mapCanvas { width: 100%; height: 100%; display: block; border-radius: 16px; touch-action: none; background: #0a0d17; }
+            .map-wrap { position: relative; height: 70vh; min-height: 420px; border-radius: 16px; border: 1px solid rgba(0, 229, 255, 0.15); overflow: hidden; }
+            .map-legend { position: absolute; top: 12px; right: 12px; background: rgba(0,0,0,0.5); border-radius: 8px; padding: 8px; font-family: monospace; font-size: 10px; color: rgba(255,255,255,0.7); }
+            .map-legend div { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+            .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+            .hint { font-size: 0.75rem; color: rgba(234,246,255,0.4); margin-top: 10px; line-height: 1.5; }
+        </style>
+    </head>
+    <body>
+        <div class="background-effects">
+            <div class="glow-orb orb-1"></div>
+            <div class="glow-orb orb-2"></div>
+        </div>
+
+        <header>
+            <div class="container header-container">
+                <div class="logo">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="#00E5FF" stroke-width="2" stroke-linejoin="round"/>
+                        <path d="M2 17L12 22L22 17" stroke="#00E5FF" stroke-width="2" stroke-linejoin="round"/>
+                        <path d="M2 12L12 17L22 12" stroke="#00E5FF" stroke-width="2" stroke-linejoin="round"/>
+                    </svg>
+                    <span>BatMapper <span style="color:#00E5FF">Web</span></span>
+                </div>
+                <nav>
+                    <a href="index.html">About</a>
+                    <a href="https://github.com/hadeka-experiments/BatMapper" target="_blank" class="btn btn-outline">GitHub</a>
+                </nav>
+            </div>
+        </header>
+
+        <main class="app-main">
+            <div class="container">
+                <div class="app-grid">
+                    <div class="panel">
+                        <h3>Sonar Console</h3>
+                        <div class="readout"><span class="label">Wall (left)</span><span class="value" id="distL">—</span></div>
+                        <div class="readout"><span class="label">Wall (right)</span><span class="value" id="distR">—</span></div>
+                        <div class="readout"><span class="label">Heading</span><span class="value" id="yaw">0°</span></div>
+                        <div class="readout"><span class="label">Map points</span><span class="value" id="points">0</span></div>
+                        <div class="readout"><span class="label">State</span><span class="value" id="walking">idle</span></div>
+
+                        <div class="btn-row">
+                            <button id="btnStart" class="btn btn-primary">Start Scanning</button>
+                            <button id="btnStop" class="btn btn-secondary" disabled>Stop</button>
+                        </div>
+                        <div class="btn-row">
+                            <button id="btnLoop" class="btn btn-outline" disabled>Close the loop</button>
+                            <button id="btnReset" class="btn btn-outline">Reset map</button>
+                            <button id="btnExport" class="btn btn-outline" disabled>Export PNG</button>
+                        </div>
+                        <div class="btn-row">
+                            <button id="btnDemo" class="btn btn-secondary">Demo walk (no mic needed)</button>
+                        </div>
+
+                        <div class="status-line" id="status">Press Start Scanning. On a phone, hold it horizontally and walk the room.</div>
+                        <div class="hint">
+                            The phone emits 8–16 kHz chirps and listens for echoes, exactly like the iOS app.
+                            Motion sensors drive the map. No sensors? Use arrow keys: ←/→ turn, ↑ walk.
+                            All processing is local — no audio leaves your device.
+                        </div>
+                    </div>
+
+                    <div class="map-wrap">
+                        <canvas id="mapCanvas"></canvas>
+                        <div class="map-legend">
+                            <div><span class="dot" style="background:#00f2ff"></span> Trace</div>
+                            <div><span class="dot" style="background:#ff8c00"></span> Wall L</div>
+                            <div><span class="dot" style="background:#6699ff"></span> Wall R</div>
+                            <div><span class="dot" style="background:#ffd900"></span> Doors</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <script src="app.js"></script>
+    </body>
+</html>
