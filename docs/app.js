@@ -379,6 +379,7 @@ class MapCanvas {
     constructor(canvas) {
         this.cv = canvas; this.g = canvas.getContext("2d");
         this.scale = 1; this.offX = 0; this.offY = 0;
+        this.autoFit = true;
         this.colors = { trace: "#00f2ff", cam: "#ff8c00", mic: "#6699ff", door: "#ffd900" };
         this.bindGestures();
         this.resize();
@@ -395,7 +396,7 @@ class MapCanvas {
         this.cv.addEventListener("pointerdown", e => {
             this.cv.setPointerCapture(e.pointerId);
             pts.set(e.pointerId, [e.clientX, e.clientY]);
-            if (pts.size === 1) drag = { x: e.clientX, y: e.clientY, ox: this.offX, oy: this.offY };
+            if (pts.size === 1) { drag = { x: e.clientX, y: e.clientY, ox: this.offX, oy: this.offY }; this.autoFit = false; }
             if (pts.size === 2) {
                 const p = [...pts.values()];
                 pinch = { d: Math.hypot(p[0][0]-p[1][0], p[0][1]-p[1][1]), s: this.scale };
@@ -409,6 +410,7 @@ class MapCanvas {
                 this.offX = drag.ox + (e.clientX - drag.x);
                 this.offY = drag.oy + (e.clientY - drag.y);
             } else if (pinch && pts.size === 2) {
+                this.autoFit = false;
                 const p = [...pts.values()];
                 const d = Math.hypot(p[0][0]-p[1][0], p[0][1]-p[1][1]);
                 this.scale = Math.max(0.1, Math.min(20, pinch.s * d / pinch.d));
@@ -419,6 +421,7 @@ class MapCanvas {
         this.cv.addEventListener("pointercancel", up);
         this.cv.addEventListener("wheel", e => {
             e.preventDefault();
+            this.autoFit = false;
             this.scale = Math.max(0.1, Math.min(20, this.scale * (e.deltaY < 0 ? 1.1 : 0.9)));
         }, { passive: false });
     }
@@ -426,6 +429,22 @@ class MapCanvas {
         const g = this.g, W = this.cv.width, H = this.cv.height;
         g.setTransform(1, 0, 0, 1, 0, 0);
         g.fillStyle = "#0a0d17"; g.fillRect(0, 0, W, H);
+        if (this.autoFit && t.trace.length >= 4) {
+            let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+            const all = t.trace.concat(t.wallCam, t.wallMic);
+            for (let i = 0; i + 1 < all.length; i += 2) {
+                const ax = all[i], ay = all[i + 1];
+                if (ax === 0 && ay === 0) continue;
+                x0 = Math.min(x0, ax); x1 = Math.max(x1, ax);
+                y0 = Math.min(y0, ay); y1 = Math.max(y1, ay);
+            }
+            const spanX = Math.max(x1 - x0, 2), spanY = Math.max(y1 - y0, 2);
+            const fit = Math.min(W / spanX, H / spanY) * 0.7;
+            this.scale = fit / (Math.min(W, H) / 80);
+            const midX = (x0 + x1) / 2, midY = (y0 + y1) / 2;
+            this.offX = -midX * fit / devicePixelRatio;
+            this.offY = midY * fit / devicePixelRatio;
+        }
         const cx = W / 2 + this.offX * devicePixelRatio;
         const cy = H / 2 + this.offY * devicePixelRatio;
         const baseScale = Math.min(W, H) / 80 * this.scale;
@@ -664,7 +683,7 @@ class DemoWalk {
 
     $("btnStart").addEventListener("click", start);
     $("btnStop").addEventListener("click", stop);
-    $("btnReset").addEventListener("click", () => { tracker.reset(); status("Map cleared."); });
+    $("btnReset").addEventListener("click", () => { tracker.reset(); map.autoFit = true; status("Map cleared."); });
     $("btnLoop").addEventListener("click", () => {
         tracker.applyLoopClosure();
         status("Loop closed: drift distributed back across the trace.");
